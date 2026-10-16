@@ -1,0 +1,29 @@
+{
+  "name": "@coffee/api",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": {
+    "dev": "concurrently -k \"tsc --watch\" \"node --watch dist/main.js\"",
+    "build": "tsc",
+    "start": "node dist/main.js",
+    "test": "npm run build && node --test test/api.test.cjs"
+  },
+  "dependencies": {
+    "@nestjs/common": "^11.1.0",
+    "@nestjs/core": "^11.1.0",
+    "@nestjs/platform-express": "^11.1.0",
+    "class-transformer": "^0.5.1",
+    "class-validator": "^0.14.2",
+    "dotenv": "^17.2.0",
+    "pg": "^8.16.0",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.2",
+    "express": "^5.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "@types/pg": "^8.15.0",
+    "@types/express": "^5.0.0",
+    "typescript": "^5.9.0"
+  }
+}
