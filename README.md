@@ -4,6 +4,10 @@
 
 A small scheduling app for the TeamLift Product Engineer Internship Challenge. One host publishes availability; visitors pick a day and reserve a slot with their name and email.
 
+**[Open the live app](https://teamlift-coffeetime.onrender.com)** · [Source code](https://github.com/AntonioPuceski/teamlift-coffeetime)
+
+The demo runs on Render's free web service with Neon PostgreSQL. After inactivity, the first visit can take about a minute to wake up. Demo availability extends beyond the submission deadline; use **Host view** to publish more times.
+
 ![Coffeetime booking page](docs/screenshots/booking-desktop.jpg)
 
 ## Stack
@@ -67,7 +71,7 @@ To deploy to a conventional Node host:
 3. Build with `npm ci && npm run build`; start with `npm start`.
 4. Open the deployed URL, publish availability in Host view, and make a test booking.
 
-The included `render.yaml` configures a free Node web service with a database readiness check. See [deployment instructions](docs/DEPLOYMENT.md) for the Render + Neon setup. A public deployment remains a submission step until its live URL is verified.
+The included `render.yaml` describes the free Node web service with a database readiness check. The live service was configured through Render's dashboard using the same settings. See [deployment instructions](docs/DEPLOYMENT.md) for the Render + Neon setup.
 
 ## Features
 
@@ -115,6 +119,8 @@ The four integration tests cover:
 - Invalid input, past slots, malformed IDs, missing slots, and expired availability
 
 The production TypeScript build also checks the frontend and backend. Manual browser verification covers host creation and a booking with a Cyrillic guest name.
+
+The deployed app was verified on October 18, 2026: the database health check passed, the browser booking and host publishing flows worked, and eight concurrent live booking requests produced exactly one success and seven conflicts. Bookings remained visible after reloading, and the public response excluded guest contact details.
 
 ## Scope and tradeoffs
 

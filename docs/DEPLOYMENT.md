@@ -1,5 +1,9 @@
 # Free deployment: Render + Neon
 
+Live app: **https://teamlift-coffeetime.onrender.com**. Deployed and verified October 18, 2026.
+
+The current service uses Render's public Git repository connection on branch `codex/initial-app`. For future code changes, use **Manual Deploy → Deploy latest commit** in Render and verify `/api/health` afterward; do not assume a push automatically deploys this service.
+
 The app uses one Render web service for both React and NestJS and a separate Neon PostgreSQL database. Keep both in a nearby European region, such as Frankfurt.
 
 ## Database
