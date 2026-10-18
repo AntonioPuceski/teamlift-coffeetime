@@ -9,7 +9,7 @@ if (existing.length) {
   process.exit(0);
 }
 let addedDays = 0;
-for (let day = 1; addedDays < 4; day++) {
+for (let day = 1; addedDays < 10; day++) {
   const date = new Date(Date.now() + day * 86400000);
   if (['Sat', 'Sun'].includes(formatInTimeZone(date, 'Europe/Skopje', 'EEE'))) continue;
   const key = formatInTimeZone(date, 'Europe/Skopje', 'yyyy-MM-dd');
@@ -31,4 +31,4 @@ for (let day = 1; addedDays < 4; day++) {
   }
   addedDays++;
 }
-console.log('Added 16 real, bookable demo slots over the next four weekdays.');
+console.log('Added 40 real, bookable demo slots over the next ten weekdays.');

@@ -1,6 +1,10 @@
 # Coffeetime — Coffee with Antonio
 
+[![Build and test](https://github.com/AntonioPuceski/teamlift-coffeetime/actions/workflows/ci.yml/badge.svg)](https://github.com/AntonioPuceski/teamlift-coffeetime/actions/workflows/ci.yml)
+
 A small scheduling app for the TeamLift Product Engineer Internship Challenge. One host publishes availability; visitors pick a day and reserve a slot with their name and email.
+
+![Coffeetime booking page](docs/screenshots/booking-desktop.jpg)
 
 ## Stack
 
@@ -37,7 +41,7 @@ For a populated demo, with the API running:
 npm run seed
 ```
 
-This creates 16 real bookable slots over the next four weekdays, only if there are no upcoming slots. The host view can also create slots without seeding.
+This creates 40 real bookable slots over the next ten weekdays, only if there are no upcoming slots. The host view can also create slots without seeding.
 
 ### Alternative database setup
 
@@ -124,6 +128,6 @@ Table creation is kept in one small initialization module for this challenge. A 
 
 Built collaboratively with OpenAI Codex for scaffolding, implementation, design iteration, and test creation. Codex ran the production build, PostgreSQL integration tests, and browser checks. During verification, a PostgreSQL parameter type mismatch was found and corrected, and local database creation was configured for UTF-8 guest names.
 
-The applicant should review the code and be able to explain the booking query, database constraints, validation, timezone conversion, and UI state before submitting. See [the walkthrough notes](docs/WALKTHROUGH.md).
+See [the walkthrough notes](docs/WALKTHROUGH.md) for a demo outline and a guide to the request flow, database constraints, validation, and timezone conversion.
 
 Reference documentation consulted: [NestJS validation](https://docs.nestjs.com/application/validation) and [PostgreSQL INSERT / ON CONFLICT](https://www.postgresql.org/docs/18/sql-insert.html).
