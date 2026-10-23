@@ -4,13 +4,17 @@ import {
   ConflictException,
   Controller,
   Get,
+  HttpException,
+  HttpStatus,
   Injectable,
   NotFoundException,
   Param,
   ParseUUIDPipe,
   Post,
+  Req,
 } from '@nestjs/common';
 import { Transform } from 'class-transformer';
+import type { Request } from 'express';
 import {
   IsEmail,
   IsIn,
@@ -23,6 +27,13 @@ import {
 } from 'class-validator';
 import { Database } from './database';
 import { Integrations } from './integrations';
+
+class AssistantRequestDto {
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
+  @IsString()
+  @Length(1, 500)
+  message!: string;
+}
 
 class CreateSlotDto {
   @IsISO8601({ strict: true })
@@ -60,6 +71,18 @@ export class SlotsService {
       FROM slots s WHERE starts_at > now() ORDER BY starts_at
     `);
     return this.integrations.annotateCalendar(rows);
+  }
+
+  async assist(message: string) {
+    const { rows } = await this.db.pool.query(`
+      SELECT s.id, s.starts_at AS "startsAt", s.duration,
+        EXISTS(SELECT 1 FROM bookings b WHERE b.slot_id = s.id) AS booked
+      FROM slots s WHERE starts_at > now() ORDER BY starts_at LIMIT 120
+    `);
+    const available = (await this.integrations.annotateCalendar(rows)).filter(
+      (slot) => !slot.booked && !slot.calendarConflict,
+    );
+    return this.integrations.recommendSlots(message, available);
   }
 
   async create(input: CreateSlotDto) {
@@ -123,18 +146,44 @@ export class SlotsService {
       if (!existing.rowCount) throw new NotFoundException('This slot could not be found.');
       throw new ConflictException('This time is no longer available. Please choose another slot.');
     }
+    const [message, calendarEventCreated] = await Promise.all([
+      this.integrations.confirmation(),
+      this.integrations.createCalendarEvent(slots[0], input.name),
+    ]);
     return {
       id: rows[0].id,
-      message: await this.integrations.confirmation(),
+      message,
+      calendarEventCreated,
     };
   }
 }
 
 @Controller('slots')
 export class SlotsController {
+  private readonly assistantRequests = new Map<string, { count: number; resetsAt: number }>();
+
   constructor(private readonly slots: SlotsService) {}
   @Get() list() {
     return this.slots.list();
+  }
+  @Post('assistant') assist(@Body() input: AssistantRequestDto, @Req() request: Request) {
+    const now = Date.now();
+    const key = request.ip || request.socket.remoteAddress || 'unknown';
+    const current = this.assistantRequests.get(key);
+    if (!current || current.resetsAt <= now) {
+      this.assistantRequests.set(key, { count: 1, resetsAt: now + 60_000 });
+    } else if (current.count >= 8) {
+      throw new HttpException(
+        'Please wait a minute before asking the assistant again.',
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
+    } else {
+      current.count += 1;
+    }
+    for (const [ip, window] of this.assistantRequests) {
+      if (window.resetsAt <= now) this.assistantRequests.delete(ip);
+    }
+    return this.slots.assist(input.message);
   }
   @Post() create(@Body() input: CreateSlotDto) {
     return this.slots.create(input);

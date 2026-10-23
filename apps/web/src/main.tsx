@@ -12,6 +12,7 @@ import {
   Globe2,
   Plus,
   RefreshCw,
+  Sparkles,
   Video,
   X,
 } from 'lucide-react';
@@ -58,18 +59,27 @@ function App() {
   const [error, setError] = useState('');
   const [selectedDay, setSelectedDay] = useState('');
   const [selectedSlot, setSelectedSlot] = useState<Slot | null>(null);
-  const [confirmation, setConfirmation] = useState<{ slot: Slot; message: string } | null>(null);
+  const [confirmation, setConfirmation] = useState<{
+    slot: Slot;
+    message: string;
+    calendarEventCreated: boolean;
+  } | null>(null);
   const [month, setMonth] = useState(() => dateKey(new Date()).slice(0, 7));
   const [duration, setDuration] = useState(0);
   const [calendarConnected, setCalendarConnected] = useState(false);
+  const [aiAssistantEnabled, setAiAssistantEnabled] = useState(false);
+  const [assistantOpen, setAssistantOpen] = useState(false);
   const initialized = useRef(false);
 
   async function load() {
     try {
       const data = await api<Slot[]>('/slots');
-      const integrations = await api<{ googleCalendar: boolean }>('/integrations/status');
+      const integrations = await api<{ googleCalendar: boolean; aiAssistant: boolean }>(
+        '/integrations/status',
+      );
       setSlots(data);
       setCalendarConnected(integrations.googleCalendar);
+      setAiAssistantEnabled(integrations.aiAssistant);
       setError('');
       if (!initialized.current) {
         const first = data.find((slot) => !slot.booked);
@@ -233,6 +243,11 @@ function App() {
                   <span className="step-label">01 / FIND YOUR MOMENT</span>
                   <h2>Pick a day & time</h2>
                 </div>
+                {aiAssistantEnabled && (
+                  <button className="assistant-trigger" onClick={() => setAssistantOpen(true)}>
+                    <Sparkles size={16} /> Plan with AI
+                  </button>
+                )}
                 <div className="timezone">
                   <Globe2 size={14} /> Europe/Skopje
                 </div>
@@ -389,12 +404,27 @@ function App() {
           Take a break. Say hello. <Coffee size={14} />
         </span>
       </footer>
+      {assistantOpen && (
+        <AssistantDialog
+          slots={available}
+          onClose={() => setAssistantOpen(false)}
+          onChoose={(slot) => {
+            setAssistantOpen(false);
+            setSelectedSlot(slot);
+          }}
+        />
+      )}
       {selectedSlot && (
         <BookingDialog
           slot={selectedSlot}
+          calendarConnected={calendarConnected}
           onClose={() => setSelectedSlot(null)}
           onBooked={(message) => {
-            setConfirmation({ slot: selectedSlot, message });
+            setConfirmation({
+              slot: selectedSlot,
+              message: message.message,
+              calendarEventCreated: message.calendarEventCreated,
+            });
             setSelectedSlot(null);
             void load();
           }}
@@ -402,12 +432,12 @@ function App() {
         />
       )}
       {confirmation && (
-        <Dialog onClose={() => setConfirmation(null)} title="You’re on the calendar.">
+        <Dialog onClose={() => setConfirmation(null)} title="You’re booked.">
           <div className="success-icon">
             <Check size={30} />
           </div>
           <p className="overline">ONE GOOD CONVERSATION, COMING UP</p>
-          <h2 id="dialog-title">You’re on the calendar.</h2>
+          <h2 id="dialog-title">You’re booked.</h2>
           <p>{confirmation.message}</p>
           <div className="booking-summary">
             <CalendarDays size={20} />
@@ -420,7 +450,13 @@ function App() {
             </div>
           </div>
           <p className="subtle">
-            Your booking is saved. This demo doesn’t send emails or create a meeting link.
+            Your booking is saved.
+            {confirmation.calendarEventCreated
+              ? ' An event was added to Antonio’s Google Calendar.'
+              : calendarConnected
+                ? ' The booking is saved, but Google Calendar did not confirm the event sync.'
+                : ' Connect Google Calendar to add confirmed bookings to the host calendar.'}{' '}
+            No email or meeting link is sent.
           </p>
           <button className="primary-button full-width" onClick={() => setConfirmation(null)}>
             Back to availability <ArrowRight size={16} />
@@ -572,6 +608,98 @@ function HostView({ slots, onCreated }: { slots: Slot[]; onCreated: () => Promis
   );
 }
 
+function AssistantDialog({
+  slots,
+  onClose,
+  onChoose,
+}: {
+  slots: Slot[];
+  onClose: () => void;
+  onChoose: (slot: Slot) => void;
+}) {
+  const [query, setQuery] = useState('');
+  const [reply, setReply] = useState('');
+  const [suggested, setSuggested] = useState<Slot[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+
+  async function submit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setBusy(true);
+    setError('');
+    setSuggested([]);
+    try {
+      const result = await api<{ message: string; slotIds: string[] }>('/slots/assistant', {
+        message: query,
+      });
+      setReply(result.message);
+      setSuggested(
+        result.slotIds
+          .map((id) => slots.find((slot) => slot.id === id))
+          .filter((slot): slot is Slot => Boolean(slot)),
+      );
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : 'I couldn’t check the open times. Please try again.',
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Dialog onClose={onClose} title="Plan your coffee chat">
+      <p className="overline">A LITTLE HELP FROM AI</p>
+      <h2 id="dialog-title">Find a time that fits.</h2>
+      <p className="subtle assistant-intro">
+        Tell me what works for you, like “a 30-minute chat next week in the afternoon.” I’ll suggest
+        open times; you’ll review the details before booking.
+      </p>
+      <form className="assistant-form" onSubmit={submit}>
+        <label htmlFor="assistant-query">When would you like to meet?</label>
+        <textarea
+          id="assistant-query"
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          maxLength={500}
+          rows={3}
+          placeholder="For example: 30 minutes, next week, preferably after lunch"
+          required
+          autoFocus
+        />
+        <button className="primary-button full-width" disabled={busy || !query.trim()}>
+          {busy ? 'Looking at available times…' : 'Find a time'} <Sparkles size={16} />
+        </button>
+      </form>
+      {error && (
+        <p className="form-error" role="alert">
+          {error}
+        </p>
+      )}
+      {reply && (
+        <div className="assistant-reply" aria-live="polite">
+          <p>{reply}</p>
+          {suggested.map((slot) => (
+            <button className="assistant-slot" key={slot.id} onClick={() => onChoose(slot)}>
+              <span>
+                <strong>{dateLabel(slot.startsAt, 'EEE, MMM d')}</strong>
+                <small>
+                  {time(slot.startsAt)} · {slot.duration} min · Skopje time
+                </small>
+              </span>
+              <ArrowRight size={17} />
+            </button>
+          ))}
+        </div>
+      )}
+      <p className="subtle privacy-note">
+        Your scheduling preference is sent to Groq to find a match. Don’t include contact details;
+        the assistant never completes a booking without your confirmation.
+      </p>
+    </Dialog>
+  );
+}
+
 function Dialog({
   children,
   onClose,
@@ -624,13 +752,15 @@ function Dialog({
 
 function BookingDialog({
   slot,
+  calendarConnected,
   onClose,
   onBooked,
   onConflict,
 }: {
   slot: Slot;
+  calendarConnected: boolean;
   onClose: () => void;
-  onBooked: (message: string) => void;
+  onBooked: (result: { message: string; calendarEventCreated: boolean }) => void;
   onConflict: () => Promise<void>;
 }) {
   const [busy, setBusy] = useState(false);
@@ -641,11 +771,14 @@ function BookingDialog({
     setError('');
     const data = new FormData(event.currentTarget);
     try {
-      const result = await api<{ message: string }>(`/slots/${slot.id}/bookings`, {
-        name: data.get('name'),
-        email: data.get('email'),
-      });
-      onBooked(result.message);
+      const result = await api<{ message: string; calendarEventCreated: boolean }>(
+        `/slots/${slot.id}/bookings`,
+        {
+          name: data.get('name'),
+          email: data.get('email'),
+        },
+      );
+      onBooked(result);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to book. Please try again.');
       await onConflict();
@@ -706,7 +839,9 @@ function BookingDialog({
         </button>
       </form>
       <p className="subtle privacy-note">
-        Your details are stored with this booking and aren’t shown publicly.
+        {calendarConnected
+          ? 'Your name and booked time are added to the host calendar. Your email stays private; no invite is sent.'
+          : 'Your details are stored with this booking and aren’t shown publicly.'}
       </p>
     </Dialog>
   );

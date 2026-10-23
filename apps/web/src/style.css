@@ -296,6 +296,21 @@ main {
   align-items: center;
   gap: 10px;
 }
+.assistant-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 13px;
+  border: 1px solid #d1d9c9;
+  border-radius: 8px;
+  background: #f3f5ed;
+  color: #3f6049;
+  font-size: 12px;
+  font-weight: 650;
+}
+.assistant-trigger:hover {
+  background: #e7eee0;
+}
 .step-label {
   font-size: 8px;
   letter-spacing: 1.7px;
@@ -815,6 +830,63 @@ input::placeholder {
   font-size: 10px;
   text-align: center;
   margin-top: 18px;
+}
+.assistant-intro {
+  margin: 10px 0 22px;
+  line-height: 1.65;
+}
+.assistant-form {
+  display: grid;
+  gap: 10px;
+}
+.assistant-form label {
+  font-size: 12px;
+  font-weight: 650;
+}
+.assistant-form textarea {
+  width: 100%;
+  resize: vertical;
+  min-height: 92px;
+  padding: 12px;
+  border: 1px solid #d5dbd0;
+  border-radius: 8px;
+  background: #fff;
+  color: #263c34;
+  line-height: 1.5;
+}
+.assistant-form textarea:focus {
+  outline: 3px solid #a07d3c55;
+  border-color: #a07d3c;
+}
+.assistant-reply {
+  display: grid;
+  gap: 9px;
+  margin-top: 20px;
+  padding-top: 17px;
+  border-top: 1px solid #e4e6dd;
+  font-size: 13px;
+  line-height: 1.55;
+}
+.assistant-slot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 11px 13px;
+  border: 1px solid #dce0d4;
+  border-radius: 8px;
+  background: #f8f8f2;
+  text-align: left;
+}
+.assistant-slot:hover {
+  background: #eef0e6;
+}
+.assistant-slot span {
+  display: grid;
+  gap: 3px;
+}
+.assistant-slot small {
+  color: #788177;
 }
 .success-icon {
   display: grid;

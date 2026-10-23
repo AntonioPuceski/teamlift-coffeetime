@@ -12,6 +12,7 @@ config({ path: resolve(__dirname, '../../../.env') });
 export async function createApp() {
   const app = await NestFactory.create(AppModule, { logger: ['error', 'warn', 'log'] });
   app.setGlobalPrefix('api');
+  app.getHttpAdapter().getInstance().set('trust proxy', 1);
   app.useGlobalPipes(
     new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }),
   );
