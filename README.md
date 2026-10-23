@@ -137,7 +137,7 @@ Both integrations are disabled unless their server-side environment variables ar
 
 ### Groq booking confirmation
 
-Set `GROQ_API_KEY` to a Groq API key. `GROQ_MODEL` is optional and defaults to `openai/gpt-oss-20b`. After the booking is saved, the API requests one short confirmation sentence from Groq. The prompt contains no guest name or email. If Groq times out or returns an error, booking still succeeds and the app returns its built-in confirmation. Groq publishes model pricing and Free-tier limits separately; keep the account on Free if you want to avoid paid usage. Check the account's current limits before enabling it.
+For local use, set `GROQ_API_KEY` in the ignored `.env`. On Render, either add it as a secret environment variable or create a Secret File named `api-key`; the app reads the latter from `/etc/secrets/api-key`. `GROQ_MODEL` is optional and defaults to `openai/gpt-oss-20b`. After the booking is saved, the API requests one short confirmation sentence from Groq. The prompt contains no guest name or email. If Groq times out or returns an error, booking still succeeds and the app returns its built-in confirmation. Groq publishes model pricing and Free-tier limits separately; keep the account on Free if you want to avoid paid usage. Check the account's current limits before enabling it.
 
 ### Google Calendar conflict checks
 

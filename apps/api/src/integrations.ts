@@ -1,4 +1,5 @@
 import { Controller, Get, Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
+import { existsSync, readFileSync } from 'node:fs';
 
 type SlotWindow = { startsAt: string | Date; duration: number };
 type BusyPeriod = { start: string; end: string };
@@ -8,9 +9,10 @@ const asDate = (value: string | Date) => (value instanceof Date ? value : new Da
 export class Integrations {
   private readonly logger = new Logger(Integrations.name);
   private accessToken?: { value: string; expiresAt: number };
+  private readonly groqApiKey = this.loadGroqApiKey();
 
   get aiEnabled() {
-    return Boolean(process.env.GROQ_API_KEY);
+    return Boolean(this.groqApiKey);
   }
 
   get calendarEnabled() {
@@ -29,7 +31,7 @@ export class Integrations {
       const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
         method: 'POST',
         headers: {
-          Authorization: `Bearer ${process.env.GROQ_API_KEY}`,
+          Authorization: `Bearer ${this.groqApiKey}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
@@ -57,6 +59,15 @@ export class Integrations {
       this.logger.warn(`AI confirmation unavailable; using fallback: ${(error as Error).message}`);
       return fallback;
     }
+  }
+
+  private loadGroqApiKey(): string | undefined {
+    const environmentKey = process.env.GROQ_API_KEY?.trim();
+    if (environmentKey) return environmentKey;
+    const secretFile = '/etc/secrets/api-key';
+    if (!existsSync(secretFile)) return undefined;
+    const fileKey = readFileSync(secretFile, 'utf8').trim();
+    return fileKey || undefined;
   }
 
   async annotateCalendar<T extends SlotWindow>(
