@@ -496,6 +496,9 @@ main {
 .time-button:disabled strong {
   text-decoration: line-through;
 }
+.time-button.calendar-conflict > span {
+  color: #8c795c;
+}
 .no-times {
   color: #8a9581;
   padding-top: 15px;
@@ -724,6 +727,10 @@ input::placeholder {
 .status-pill.booked {
   background: #eee9df;
   color: #8c795c;
+}
+.status-pill.calendar-conflict {
+  background: #f7eedc;
+  color: #8a6941;
 }
 .empty-state {
   padding: 48px 10px;

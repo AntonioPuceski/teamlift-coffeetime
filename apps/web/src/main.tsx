@@ -18,7 +18,13 @@ import {
 import { formatInTimeZone, fromZonedTime } from 'date-fns-tz';
 import './style.css';
 
-type Slot = { id: string; startsAt: string; duration: number; booked: boolean };
+type Slot = {
+  id: string;
+  startsAt: string;
+  duration: number;
+  booked: boolean;
+  calendarConflict?: boolean;
+};
 const ZONE = 'Europe/Skopje';
 const dateKey = (date: string | Date) => formatInTimeZone(date, ZONE, 'yyyy-MM-dd');
 const time = (date: string) => formatInTimeZone(date, ZONE, 'HH:mm');
@@ -55,12 +61,15 @@ function App() {
   const [confirmation, setConfirmation] = useState<{ slot: Slot; message: string } | null>(null);
   const [month, setMonth] = useState(() => dateKey(new Date()).slice(0, 7));
   const [duration, setDuration] = useState(0);
+  const [calendarConnected, setCalendarConnected] = useState(false);
   const initialized = useRef(false);
 
   async function load() {
     try {
       const data = await api<Slot[]>('/slots');
+      const integrations = await api<{ googleCalendar: boolean }>('/integrations/status');
       setSlots(data);
+      setCalendarConnected(integrations.googleCalendar);
       setError('');
       if (!initialized.current) {
         const first = data.find((slot) => !slot.booked);
@@ -87,7 +96,9 @@ function App() {
     };
   }, []);
 
-  const available = slots.filter((s) => !s.booked && (!duration || s.duration === duration));
+  const available = slots.filter(
+    (s) => !s.booked && !s.calendarConflict && (!duration || s.duration === duration),
+  );
   const days = new Set(available.map((s) => dateKey(s.startsAt)));
   const daySlots = slots.filter(
     (s) => dateKey(s.startsAt) === selectedDay && (!duration || s.duration === duration),
@@ -197,6 +208,11 @@ function App() {
                 <span>
                   <Globe2 /> Skopje time
                 </span>
+                {calendarConnected && (
+                  <span>
+                    <CalendarDays /> Google Calendar checked
+                  </span>
+                )}
               </div>
               <div className="coffee-note">
                 <Coffee size={24} />
@@ -309,7 +325,7 @@ function App() {
                     </h3>
                     <p className="times-count">
                       {selectedDay
-                        ? `${daySlots.filter((s) => !s.booked).length} available times`
+                        ? `${daySlots.filter((s) => !s.booked && !s.calendarConflict).length} available times`
                         : 'Choose an available day'}
                     </p>
                     <div className="time-list">
@@ -317,13 +333,19 @@ function App() {
                         daySlots.map((slot) => (
                           <button
                             key={slot.id}
-                            disabled={slot.booked}
-                            className="time-button"
+                            disabled={slot.booked || slot.calendarConflict}
+                            className={`time-button ${slot.calendarConflict ? 'calendar-conflict' : ''}`}
                             onClick={() => setSelectedSlot(slot)}
                           >
                             <strong>{time(slot.startsAt)}</strong>
-                            <span>{slot.booked ? 'Booked' : `${slot.duration} min`}</span>
-                            {!slot.booked && <ArrowRight size={16} />}
+                            <span>
+                              {slot.booked
+                                ? 'Booked'
+                                : slot.calendarConflict
+                                  ? 'Calendar conflict'
+                                  : `${slot.duration} min`}
+                            </span>
+                            {!slot.booked && !slot.calendarConflict && <ArrowRight size={16} />}
                           </button>
                         ))
                       ) : (
@@ -416,7 +438,7 @@ function HostView({ slots, onCreated }: { slots: Slot[]; onCreated: () => Promis
   const dateInput = useRef<HTMLInputElement>(null);
   const counts = useMemo(
     () => ({
-      open: slots.filter((s) => !s.booked).length,
+      open: slots.filter((s) => !s.booked && !s.calendarConflict).length,
       booked: slots.filter((s) => s.booked).length,
     }),
     [slots],
@@ -523,8 +545,14 @@ function HostView({ slots, onCreated }: { slots: Slot[]; onCreated: () => Promis
                     {time(slot.startsAt)} · {slot.duration} minutes
                   </p>
                 </div>
-                <span className={`status-pill ${slot.booked ? 'booked' : ''}`}>
-                  {slot.booked ? 'Booked' : 'Available'}
+                <span
+                  className={`status-pill ${slot.booked ? 'booked' : ''} ${slot.calendarConflict ? 'calendar-conflict' : ''}`}
+                >
+                  {slot.booked
+                    ? 'Booked'
+                    : slot.calendarConflict
+                      ? 'Calendar conflict'
+                      : 'Available'}
                 </span>
               </div>
             ))}

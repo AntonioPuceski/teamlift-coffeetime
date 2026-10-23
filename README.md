@@ -81,15 +81,18 @@ The included `render.yaml` describes the free Node web service with a database r
 - Booked times become disabled; availability refreshes on window focus and every 30 seconds
 - Responsive layouts, native modal focus management, labels, keyboard focus styles, and reduced-motion support
 - PostgreSQL persistence, with guest contact details omitted from the public availability response
+- Optional Google Calendar FreeBusy checks mark conflicting availability unavailable before publishing and booking
+- Optional Groq-generated booking confirmation, with a friendly fallback if the AI service is unset or unavailable
 
 ## API
 
-| Method | Route                     | Behavior                                                                     |
-| ------ | ------------------------- | ---------------------------------------------------------------------------- |
-| GET    | `/api/health`             | Reports readiness after a successful database query                          |
-| GET    | `/api/slots`              | Upcoming slots with `id`, `startsAt`, `duration`, and `booked`               |
-| POST   | `/api/slots`              | Create a slot using `{ "startsAt": "2026-10-23T08:00:00Z", "duration": 30 }` |
-| POST   | `/api/slots/:id/bookings` | Reserve using `{ "name": "Alex", "email": "alex@example.com" }`              |
+| Method | Route                      | Behavior                                                                     |
+| ------ | -------------------------- | ---------------------------------------------------------------------------- |
+| GET    | `/api/health`              | Reports readiness after a successful database query                          |
+| GET    | `/api/slots`               | Upcoming slots with booking and optional calendar-conflict status            |
+| POST   | `/api/slots`               | Create a slot using `{ "startsAt": "2026-10-23T08:00:00Z", "duration": 30 }` |
+| POST   | `/api/slots/:id/bookings`  | Reserve using `{ "name": "Alex", "email": "alex@example.com" }`              |
+| GET    | `/api/integrations/status` | Reports whether optional integrations are configured                         |
 
 Creation examples must use a date in the future. Invalid input returns 400, a missing booking slot returns 404, and overlapping availability or an unavailable booking returns 409.
 
@@ -126,13 +129,38 @@ The deployed app was verified on October 18, 2026: the database health check pas
 
 There is no login, as requested. The host view is a shared demo interface, not a protected admin area. Guest names and emails are stored, but no public endpoint returns them. Before using this for real scheduling, add host authentication, rate limiting, a retention policy, and appropriate privacy information.
 
-The confirmation is deterministic text, not an LLM call. No confirmation emails, video meeting links, or Google Calendar integration are generated. These are deliberately outside this first version. The app clearly states that on confirmation.
+The app does not send confirmation emails or create video meeting links. It clearly tells visitors this after booking. The host view remains public because the challenge does not require accounts; a real scheduling product should add host authentication, rate limiting, retention rules, and appropriate privacy information.
+
+## Optional integrations
+
+Both integrations are disabled unless their server-side environment variables are configured. Never put provider credentials in frontend code or commit them to Git. For local development, add secrets to the ignored `.env` file; for Render, add them under the service's secret environment variables.
+
+### Groq booking confirmation
+
+Set `GROQ_API_KEY` to a Groq API key. `GROQ_MODEL` is optional and defaults to `openai/gpt-oss-20b`. After the booking is saved, the API requests one short confirmation sentence from Groq. The prompt contains no guest name or email. If Groq times out or returns an error, booking still succeeds and the app returns its built-in confirmation. Groq publishes model pricing and Free-tier limits separately; keep the account on Free if you want to avoid paid usage. Check the account's current limits before enabling it.
+
+### Google Calendar conflict checks
+
+The app uses Google's FreeBusy API to check event time ranges; it never reads or returns event titles or descriptions. It marks overlapping slots as calendar conflicts in the host schedule, rejects publishing a slot that conflicts, and rechecks before accepting a booking. If Google Calendar is configured but unavailable, the request fails safely so the app does not claim that a calendar-checked time is free.
+
+Configure these server-side variables:
+
+- `GOOGLE_CLIENT_ID`
+- `GOOGLE_CLIENT_SECRET`
+- `GOOGLE_REFRESH_TOKEN`
+- `GOOGLE_CALENDAR_ID` (use `primary` for the authorized account's main calendar)
+
+In Google Cloud, enable the Google Calendar API and create an OAuth client. Use Google's OAuth 2.0 Playground with that client and the `https://www.googleapis.com/auth/calendar.freebusy` scope to grant access and obtain an offline refresh token. Store the client secret and refresh token as secrets in Render or `.env`; never commit them. The authorized account must have access to the selected calendar. The public `/api/integrations/status` endpoint reports only whether each integration is configured; it never returns credentials.
+
+For an External OAuth consent screen left in Testing mode, Google expires refresh tokens after seven days. That is adequate for a short challenge review; longer use requires publishing the consent configuration and meeting Google's requirements.
+
+The booking confirmation call happens after the database commit. AI provider failures use the fallback message, so they cannot undo a saved booking. Google Calendar checks and PostgreSQL booking constraints work together; the database still provides the final one-booking-per-slot guarantee.
 
 Table creation is kept in one small initialization module for this challenge. A longer-lived product should use versioned migrations. Other useful additions would be cancellation, host booking details behind authentication, explicit DST ambiguity handling, email delivery, and a calendar invite download.
 
 ## AI usage
 
-Built collaboratively with OpenAI Codex for scaffolding, implementation, design iteration, and test creation. Codex ran the production build, PostgreSQL integration tests, and browser checks. During verification, a PostgreSQL parameter type mismatch was found and corrected, and local database creation was configured for UTF-8 guest names.
+Built collaboratively with OpenAI Codex for scaffolding, implementation, design iteration, and test creation. Codex ran the production build, PostgreSQL integration tests, and browser checks. During verification, a PostgreSQL parameter type mismatch was found and corrected, and local database creation was configured for UTF-8 guest names. The optional Groq confirmation uses a short prompt without guest PII; Google Calendar checks use FreeBusy availability only.
 
 See [the walkthrough notes](docs/WALKTHROUGH.md) for a demo outline and a guide to the request flow, database constraints, validation, and timezone conversion.
 

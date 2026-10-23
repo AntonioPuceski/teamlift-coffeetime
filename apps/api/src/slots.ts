@@ -22,6 +22,7 @@ import {
   Matches,
 } from 'class-validator';
 import { Database } from './database';
+import { Integrations } from './integrations';
 
 class CreateSlotDto {
   @IsISO8601({ strict: true })
@@ -47,7 +48,10 @@ class BookSlotDto {
 
 @Injectable()
 export class SlotsService {
-  constructor(private readonly db: Database) {}
+  constructor(
+    private readonly db: Database,
+    private readonly integrations: Integrations,
+  ) {}
 
   async list() {
     const { rows } = await this.db.pool.query(`
@@ -55,12 +59,21 @@ export class SlotsService {
         EXISTS(SELECT 1 FROM bookings b WHERE b.slot_id = s.id) AS booked
       FROM slots s WHERE starts_at > now() ORDER BY starts_at
     `);
-    return rows;
+    return this.integrations.annotateCalendar(rows);
   }
 
   async create(input: CreateSlotDto) {
     if (Date.parse(input.startsAt) <= Date.now())
       throw new BadRequestException('Choose a time in the future.');
+    if (
+      await this.integrations.hasCalendarConflict({
+        startsAt: input.startsAt,
+        duration: input.duration,
+      })
+    )
+      throw new ConflictException(
+        'This time conflicts with an event in the connected Google Calendar.',
+      );
     try {
       const { rows } = await this.db.pool.query(
         `
@@ -79,6 +92,23 @@ export class SlotsService {
   }
 
   async book(id: string, input: BookSlotDto) {
+    const { rows: slots } = await this.db.pool.query(
+      `SELECT s.starts_at AS "startsAt", s.duration,
+        EXISTS(SELECT 1 FROM bookings b WHERE b.slot_id = s.id) AS booked
+      FROM slots s WHERE s.id = $1 AND s.starts_at > now()`,
+      [id],
+    );
+    if (!slots.length) {
+      const existing = await this.db.pool.query('SELECT id FROM slots WHERE id = $1', [id]);
+      if (!existing.rowCount) throw new NotFoundException('This slot could not be found.');
+      throw new ConflictException('This time has passed and is no longer available.');
+    }
+    if (slots[0].booked)
+      throw new ConflictException('This time is no longer available. Please choose another slot.');
+    if (await this.integrations.hasCalendarConflict(slots[0]))
+      throw new ConflictException(
+        'This time conflicts with an event in the connected Google Calendar.',
+      );
     // One atomic insert. The unique constraint arbitrates concurrent requests.
     const { rows } = await this.db.pool.query(
       `
@@ -95,7 +125,7 @@ export class SlotsService {
     }
     return {
       id: rows[0].id,
-      message: `You're booked, ${input.name}! Looking forward to our coffee chat.`,
+      message: await this.integrations.confirmation(),
     };
   }
 }
